@@ -1,0 +1,6 @@
+node_modules/
+proof/
+frames/
+audio/*.wav
+.DS_Store
+*.log
