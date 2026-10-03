@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kinbuild</title>
+  <style>
+    @font-face {
+      font-family: "Cormorant Garamond";
+      font-style: normal;
+      font-weight: 500;
+      font-display: block;
+      src: url("/node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-500-normal.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Outfit";
+      font-style: normal;
+      font-weight: 300;
+      font-display: block;
+      src: url("/node_modules/@fontsource/outfit/files/outfit-latin-300-normal.woff2") format("woff2");
+    }
+    html, body {
+      margin: 0;
+      background: #1c1b19;
+      height: 100%;
+    }
+    #stage {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: #e3dcd2;
+    }
+    #view {
+      display: block;
+      width: 1920px;
+      height: 1080px;
+    }
+    #vignette, #grain, #wash, #line, #card {
+      position: absolute;
+      pointer-events: none;
+    }
+    #vignette {
+      inset: 0;
+      background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 52%, rgba(36, 30, 24, 0.38) 100%);
+      z-index: 2;
+    }
+    #grain {
+      inset: -40px;
+      background-repeat: repeat;
+      background-size: 256px 256px;
+      mix-blend-mode: overlay;
+      opacity: 0.16;
+      z-index: 3;
+    }
+    #wash {
+      inset: 0;
+      background: #f3efe6;
+      opacity: 0;
+      z-index: 4;
+    }
+    #line {
+      left: 132px;
+      bottom: 108px;
+      z-index: 5;
+      margin: 0;
+      max-width: 980px;
+      font-family: "Cormorant Garamond", "Times New Roman", serif;
+      font-weight: 500;
+      font-size: 46px;
+      line-height: 1.15;
+      letter-spacing: -0.012em;
+      color: #241f1b;
+      text-shadow: 0 0 22px rgba(243, 239, 230, 0.92), 0 1px 0 rgba(243, 239, 230, 0.75);
+      opacity: 0;
+    }
+    #card {
+      inset: 0;
+      z-index: 6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    #mark, #sub, #tag {
+      opacity: 0;
+    }
+    #mark {
+      font-family: Outfit, "Gill Sans", sans-serif;
+      font-weight: 300;
+      font-size: 54px;
+      letter-spacing: 0.5em;
+      padding-left: 0.5em;
+      color: #1b1a18;
+    }
+    #sub {
+      margin-top: 16px;
+      font-family: "Cormorant Garamond", "Times New Roman", serif;
+      font-weight: 500;
+      font-size: 36px;
+      letter-spacing: -0.01em;
+      color: #2a2825;
+    }
+    #tag {
+      margin-top: 34px;
+      font-family: Outfit, "Gill Sans", sans-serif;
+      font-weight: 300;
+      font-size: 15px;
+      letter-spacing: 0.34em;
+      padding-left: 0.34em;
+      color: #5c5852;
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "/node_modules/three/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="stage">
+    <div id="vignette"></div>
+    <div id="grain"></div>
+    <div id="wash"></div>
+    <p id="line"></p>
+    <div id="card">
+      <div id="mark">KINBUILD</div>
+      <div id="sub">Don’t build alone.</div>
+      <div id="tag">Meet. Test. Build. Decide.</div>
+    </div>
+  </div>
+  <script type="module" src="/film/main.js"></script>
+</body>
+</html>

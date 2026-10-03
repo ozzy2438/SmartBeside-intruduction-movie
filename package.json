@@ -1,0 +1,27 @@
+{
+  "name": "kinbuild-film",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cinematic brand film for Kinbuild.",
+  "scripts": {
+    "stills": "node film/render.mjs --stills",
+    "render": "node film/render.mjs",
+    "audio": "python3 audio/design.py"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ozzy2438/SmartBeside-intruduction-movie.git"
+  },
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ozzy2438/SmartBeside-intruduction-movie/issues"
+  },
+  "homepage": "https://github.com/ozzy2438/SmartBeside-intruduction-movie#readme",
+  "dependencies": {
+    "@fontsource/cormorant-garamond": "^5.3.0",
+    "@fontsource/outfit": "^5.3.0",
+    "puppeteer-core": "^24.15.0",
+    "three": "^0.170.0"
+  }
+}
