@@ -36,7 +36,7 @@
       width: 1920px;
       height: 1080px;
     }
-    #vignette, #grain, #wash, #line, #card {
+    #vignette, #grain, #wash, #line, #card, #flash, .bar {
       position: absolute;
       pointer-events: none;
     }
@@ -61,7 +61,7 @@
     }
     #line {
       left: 132px;
-      bottom: 108px;
+      bottom: 172px;
       z-index: 5;
       margin: 0;
       max-width: 980px;
@@ -83,19 +83,38 @@
       justify-content: center;
       text-align: center;
     }
-    #mark, #sub, #tag {
+    #glyph {
+      width: 128px;
+      height: 92px;
       opacity: 0;
     }
-    #mark {
+    #glyph line {
+      stroke: #1e1c1a;
+      stroke-width: 5;
+      stroke-linecap: square;
+      fill: none;
+    }
+    #word, #rule, #sub, #tag {
+      opacity: 0;
+    }
+    #word {
+      margin-top: 30px;
       font-family: Outfit, "Gill Sans", sans-serif;
       font-weight: 300;
       font-size: 54px;
-      letter-spacing: 0.5em;
-      padding-left: 0.5em;
+      letter-spacing: 0.85em;
+      padding-left: 0.85em;
       color: #1b1a18;
     }
+    #rule {
+      margin-top: 22px;
+      width: 240px;
+      height: 1px;
+      background: #4a463f;
+      transform: scaleX(0.001);
+    }
     #sub {
-      margin-top: 16px;
+      margin-top: 20px;
       font-family: "Cormorant Garamond", "Times New Roman", serif;
       font-weight: 500;
       font-size: 36px;
@@ -103,13 +122,28 @@
       color: #2a2825;
     }
     #tag {
-      margin-top: 34px;
+      margin-top: 30px;
       font-family: Outfit, "Gill Sans", sans-serif;
       font-weight: 300;
       font-size: 15px;
       letter-spacing: 0.34em;
       padding-left: 0.34em;
       color: #5c5852;
+    }
+    #barTop, #barBottom {
+      left: 0;
+      right: 0;
+      background: #121110;
+      height: 0;
+      z-index: 7;
+    }
+    #barTop { top: 0; }
+    #barBottom { bottom: 0; }
+    #flash {
+      inset: 0;
+      background: #fff6e6;
+      opacity: 0;
+      z-index: 8;
     }
   </style>
   <script type="importmap">
@@ -127,10 +161,20 @@
     <div id="wash"></div>
     <p id="line"></p>
     <div id="card">
-      <div id="mark">KINBUILD</div>
+      <svg id="glyph" viewBox="0 0 86 62">
+        <line x1="14" y1="12" x2="76" y2="12" />
+        <line x1="24" y1="12" x2="24" y2="56" />
+        <line x1="62" y1="56" x2="62" y2="40" />
+        <line x1="62" y1="40" x2="49" y2="12" />
+      </svg>
+      <div id="word">KINBUILD</div>
+      <div id="rule"></div>
       <div id="sub">Don’t build alone.</div>
       <div id="tag">Meet. Test. Build. Decide.</div>
     </div>
+    <div id="barTop" class="bar"></div>
+    <div id="barBottom" class="bar"></div>
+    <div id="flash"></div>
   </div>
   <script type="module" src="/film/main.js"></script>
 </body>

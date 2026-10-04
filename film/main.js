@@ -9,6 +9,9 @@ import {
   cameraPose,
   captionState,
   exposureAt,
+  shakeAt,
+  idleWobble,
+  smooth,
 } from "./timeline.js";
 import { LOCK, PIECE } from "./fit.js";
 
@@ -155,7 +158,7 @@ function makeStoneTextures(hex, seed) {
       const i = y * size + x;
       const h = height[i];
       const vein = Math.exp(-(((h - 0.46) * 7.5) ** 2));
-      const col = mixRgb(mixRgb(cool, warm, 0.42 + h * 0.22), veinRgb, vein * 0.07);
+      const col = mixRgb(mixRgb(cool, warm, 0.34 + h * 0.38), veinRgb, vein * 0.1);
       const p = i * 4;
       cimg.data[p] = Math.round(col[0] * 255);
       cimg.data[p + 1] = Math.round(col[1] * 255);
@@ -282,7 +285,7 @@ function stoneMaterial(textures, roughness, metalness = 0) {
     map: textures.map,
     roughnessMap: textures.roughnessMap,
     normalMap: textures.normalMap,
-    normalScale: new THREE.Vector2(0.22, 0.22),
+    normalScale: new THREE.Vector2(0.32, 0.32),
     roughness,
     metalness,
     envMapIntensity: 0.14,
@@ -477,29 +480,35 @@ const guideMat = new THREE.LineBasicMaterial({
   depthWrite: false,
 });
 const guides = new THREE.Group();
-function addLine(a, b) {
+const guideLines = [];
+function addGuide(a, b, axis, t0) {
+  const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
   const geo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(...a),
-    new THREE.Vector3(...b),
+    new THREE.Vector3(a[0] - mid[0], a[1] - mid[1], a[2] - mid[2]),
+    new THREE.Vector3(b[0] - mid[0], b[1] - mid[1], b[2] - mid[2]),
   ]);
   const line = new THREE.Line(geo, guideMat);
+  line.position.set(mid[0], mid[1], mid[2]);
   line.renderOrder = 3;
+  line.scale.set(axis === "x" ? 0.001 : 1, axis === "y" ? 0.001 : 1, 1);
   guides.add(line);
+  guideLines.push({ line, axis, t0 });
 }
 const guideExtent = 3.4;
 for (let i = -3; i <= 3; i += 1) {
   const o = i * 1.05;
-  addLine([-guideExtent, 0.02, o], [guideExtent, 0.02, o]);
-  addLine([o, 0.02, -guideExtent], [o, 0.02, guideExtent]);
+  addGuide([-guideExtent, 0.02, o], [guideExtent, 0.02, o], "x", 12.0 + (i + 3) * 0.05);
+  addGuide([o, 0.02, -guideExtent], [o, 0.02, guideExtent], "y", 12.2 + (i + 3) * 0.05);
 }
+const TICK_BEATS = [12.45, 13.8, 15.15, 16.5];
 for (let i = -8; i <= 8; i += 1) {
   const x = i * 0.42;
-  addLine([x, 0.025, -0.07], [x, 0.025, 0.07]);
+  addGuide([x, 0.025, -0.07], [x, 0.025, 0.07], "y", TICK_BEATS[(i + 8) % TICK_BEATS.length]);
 }
-addLine([LOCK.pier[0], 0.02, 0.42], [LOCK.pier[0], 2.7, 0.42]);
-addLine([LOCK.bearing[0], 0.02, 0.5], [LOCK.bearing[0], 1.7, 0.5]);
+addGuide([LOCK.pier[0], 0.02, 0.42], [LOCK.pier[0], 2.7, 0.42], "y", 12.35);
+addGuide([LOCK.bearing[0], 0.02, 0.5], [LOCK.bearing[0], 1.7, 0.5], "y", 12.55);
 for (let y = 0.5; y <= 2.5; y += 0.5) {
-  addLine([LOCK.pier[0] - 0.08, y, 0.42], [LOCK.pier[0] + 0.08, y, 0.42]);
+  addGuide([LOCK.pier[0] - 0.08, y, 0.42], [LOCK.pier[0] + 0.08, y, 0.42], "x", 12.65 + y * 0.2);
 }
 scene.add(guides);
 
@@ -546,14 +555,132 @@ envPlane(0x8e867b, 0, -6, 0, Math.PI / 2, 0);
 scene.environment = pmrem.fromScene(envScene, 0.12).texture;
 pmrem.dispose();
 
+function makeDust() {
+  const count = 170;
+  const positions = new Float32Array(count * 3);
+  const rand = mulberry32(123);
+  for (let i = 0; i < count; i += 1) {
+    positions[i * 3] = (rand() - 0.5) * 15;
+    positions[i * 3 + 1] = rand() * 4.4;
+    positions[i * 3 + 2] = (rand() - 0.5) * 15 + 1.5;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    color: 0xfff2dd,
+    size: 0.032,
+    map: blobMap,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.renderOrder = 4;
+  scene.add(pts);
+  return pts;
+}
+const dust = makeDust();
+
+function makeRayTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, "rgba(255,246,230,0.85)");
+  g.addColorStop(0.55, "rgba(255,246,230,0.28)");
+  g.addColorStop(1, "rgba(255,246,230,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 256);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeGlowTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  const g = ctx.createRadialGradient(128, 128, 8, 128, 128, 128);
+  g.addColorStop(0, "rgba(255,247,232,0.9)");
+  g.addColorStop(0.5, "rgba(255,247,232,0.32)");
+  g.addColorStop(1, "rgba(255,247,232,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const rayTex = makeRayTexture();
+const rayMat = new THREE.MeshBasicMaterial({
+  map: rayTex,
+  transparent: true,
+  opacity: 0,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  toneMapped: false,
+});
+const rays = new THREE.Group();
+for (const [x, z, rot] of [[-1.2, 3.6, 0.42], [0.35, 3.1, 0.5], [1.7, 4.0, 0.36]]) {
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 9.5), rayMat);
+  mesh.position.set(x, 3.6, z);
+  mesh.rotation.z = rot;
+  mesh.renderOrder = 5;
+  rays.add(mesh);
+}
+rays.visible = false;
+scene.add(rays);
+
+const glowMat = new THREE.MeshBasicMaterial({
+  map: makeGlowTexture(),
+  transparent: true,
+  opacity: 0,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  toneMapped: false,
+});
+const glow = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), glowMat);
+glow.position.set(0, 2.1, 7.6);
+glow.rotation.y = Math.PI;
+glow.renderOrder = 5;
+glow.visible = false;
+scene.add(glow);
+
 const lineEl = document.getElementById("line");
-const markEl = document.getElementById("mark");
+const glyphEl = document.getElementById("glyph");
+const wordEl = document.getElementById("word");
+const ruleEl = document.getElementById("rule");
 const subEl = document.getElementById("sub");
 const tagEl = document.getElementById("tag");
 const washEl = document.getElementById("wash");
 const vignetteEl = document.getElementById("vignette");
 const grainEl = document.getElementById("grain");
+const flashEl = document.getElementById("flash");
+const barTopEl = document.getElementById("barTop");
+const barBottomEl = document.getElementById("barBottom");
 makeGrainTile();
+
+const glyphStrokes = [...glyphEl.querySelectorAll("line")].map((el) => {
+  const x1 = parseFloat(el.getAttribute("x1"));
+  const y1 = parseFloat(el.getAttribute("y1"));
+  const x2 = parseFloat(el.getAttribute("x2"));
+  const y2 = parseFloat(el.getAttribute("y2"));
+  const len = Math.hypot(x2 - x1, y2 - y1);
+  el.style.strokeDasharray = `${len}`;
+  el.style.strokeDashoffset = `${len}`;
+  return { el, len };
+});
+const GLYPH_STAGGER = [
+  [0.0, 0.4],
+  [0.14, 0.55],
+  [0.32, 0.72],
+  [0.52, 0.98],
+];
 
 const fogA = new THREE.Color(PALETTE.fogHall);
 const fogB = new THREE.Color(PALETTE.fogCourt);
@@ -570,13 +697,26 @@ function applyPose(group, pose) {
 }
 
 function apply(t) {
+  const cap = captionState(t);
   const cam = cameraPose(t);
   camera.position.set(cam.p[0], cam.p[1], cam.p[2]);
   camera.lookAt(cam.l[0], cam.l[1], cam.l[2]);
+  const shake = shakeAt(t);
+  camera.position.x += shake[0];
+  camera.position.y += shake[1];
   camera.fov = cam.f;
   camera.updateProjectionMatrix();
 
   for (const name of Object.keys(pieces)) applyPose(pieces[name], piecePose(name, t));
+  const wob = idleWobble(t);
+  if (wob > 0) {
+    const phases = { pier: 0.7, bearing: 2.1, wedge: 3.6, lintel: 5.0 };
+    for (const [name, phase] of Object.entries(phases)) {
+      const group = pieces[name];
+      group.rotation.y += Math.sin(t * 0.9 + phase) * 0.006 * wob;
+      group.position.y += Math.sin(t * 0.7 + phase * 1.7) * 0.004 * wob;
+    }
+  }
   const offOp = offcutOpacity(t);
   offcut.visible = offOp > 0.01;
   offcutMat.opacity = offOp;
@@ -610,6 +750,16 @@ function apply(t) {
   const guideOp = guidesOpacity(t);
   guideMat.opacity = guideOp;
   guides.visible = guideOp > 0.01;
+  if (guides.visible) {
+    for (const guide of guideLines) {
+      const p = smooth(Math.min(1, Math.max(0, (t - guide.t0) / 0.45)));
+      guide.line.scale.set(
+        guide.axis === "x" ? Math.max(0.001, p) : 1,
+        guide.axis === "y" ? Math.max(0.001, p) : 1,
+        1,
+      );
+    }
+  }
 
   for (const name of ["pier", "bearing", "wedge", "offcut"]) {
     const pose = pieces[name].position;
@@ -622,17 +772,45 @@ function apply(t) {
     disc.visible = disc.material.opacity > 0.02;
   }
 
-  const cap = captionState(t);
+  dust.rotation.y = t * 0.012;
+  dust.position.y = Math.sin(t * 0.05) * 0.2;
+  const exitGlow = Math.max(0, Math.min(1, (t - 28.8) / 1.4)) * (1 - cap.wash);
+  dust.material.opacity = Math.min(0.55, 0.1 + env * 0.16 + exitGlow * 0.5) * (1 - cap.wash);
+  dust.visible = dust.material.opacity > 0.02;
+
+  rayMat.opacity = exitGlow * 0.42;
+  rays.visible = exitGlow > 0.02;
+  glowMat.opacity = exitGlow * 0.6;
+  glow.visible = exitGlow > 0.02;
+
   lineEl.textContent = cap.line;
   lineEl.style.opacity = String(cap.lineOpacity);
-  markEl.style.opacity = String(cap.markOpacity);
+  lineEl.style.transform = `translateY(${((1 - cap.lineEnter) * 14).toFixed(2)}px)`;
+
+  for (let i = 0; i < glyphStrokes.length; i += 1) {
+    const stroke = glyphStrokes[i];
+    const [a, b] = GLYPH_STAGGER[i];
+    const p = Math.min(1, Math.max(0, (cap.glyph - a) / (b - a)));
+    stroke.el.style.strokeDashoffset = `${stroke.len * (1 - p)}`;
+  }
+  glyphEl.style.opacity = String(Math.min(1, cap.glyph * 3));
+  wordEl.style.opacity = String(cap.wordOpacity);
+  const track = 0.85 - 0.35 * cap.wordTrack;
+  wordEl.style.letterSpacing = `${track.toFixed(3)}em`;
+  wordEl.style.paddingLeft = `${track.toFixed(3)}em`;
+  wordEl.style.transform = `translateY(${((1 - cap.wordTrack) * 10).toFixed(2)}px)`;
+  ruleEl.style.transform = `scaleX(${Math.max(0.001, cap.ruleScale).toFixed(3)})`;
   subEl.style.opacity = String(cap.subOpacity);
   tagEl.style.opacity = String(cap.tagOpacity);
   washEl.style.opacity = String(cap.wash);
   vignetteEl.style.opacity = String(cap.vignette * 0.9);
+  flashEl.style.opacity = String(cap.flash);
   grainEl.style.opacity = String(0.16 * (1 - cap.wash * 0.85));
   const drift = Math.floor(t * FPS);
   grainEl.style.backgroundPosition = `${-(drift * 17) % 256}px ${-(drift * 11) % 256}px`;
+  const barIn = smooth(Math.min(1, t / 1.1));
+  barTopEl.style.height = `${(132 * barIn).toFixed(1)}px`;
+  barBottomEl.style.height = `${(132 * barIn).toFixed(1)}px`;
 
   renderer.render(scene, camera);
 }
