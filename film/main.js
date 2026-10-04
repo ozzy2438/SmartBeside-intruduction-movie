@@ -10,6 +10,7 @@ import {
   captionState,
   exposureAt,
 } from "./timeline.js";
+import { LOCK, PIECE } from "./fit.js";
 
 const PALETTE = {
   pier: "#d4cdc0",
@@ -393,82 +394,31 @@ obstacle.castShadow = true;
 obstacle.receiveShadow = true;
 scene.add(obstacle);
 
-function warpGeometry(geo, warp) {
-  const pos = geo.attributes.position;
-  const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i += 1) {
-    v.fromBufferAttribute(pos, i);
-    const p = warp(v.x, v.y, v.z);
-    pos.setXYZ(i, p[0], p[1], p[2]);
-  }
-  geo.computeVertexNormals();
-  const normal = geo.attributes.normal;
-  const n = new THREE.Vector3();
-  const noise = makeNoise(41);
-  for (let i = 0; i < pos.count; i += 1) {
-    v.fromBufferAttribute(pos, i);
-    n.fromBufferAttribute(normal, i);
-    const d = (fbm(noise, v.x * 1.7 + 2, v.y * 1.4 + v.z) - 0.5) * 0.014;
-    pos.setXYZ(i, v.x + n.x * d, v.y + n.y * d, v.z + n.z * d);
-  }
-  geo.computeVertexNormals();
-}
-
-function groundedBox(w, h, d, sx, sy, sz) {
-  const geo = new THREE.BoxGeometry(w, h, d, sx, sy, sz);
+function groundedBox(w, h, d) {
+  const geo = new THREE.BoxGeometry(w, h, d);
   geo.translate(0, h / 2, 0);
   return geo;
 }
 
-const pierGeo = groundedBox(0.72, 3.08, 0.54, 6, 14, 5);
-warpGeometry(pierGeo, (x, y, z) => {
-  const u = y / 3.08;
-  const taper = 1 - u * 0.1;
-  const shift = Math.sin(u * Math.PI) * 0.028;
-  return [x * taper + shift, y, z * (0.97 - u * 0.06)];
-});
-
-const bearingGeo = groundedBox(1.16, 1.78, 0.82, 6, 8, 5);
-warpGeometry(bearingGeo, (x, y, z) => {
-  const u = y / 1.78;
-  return [x * (1 - u * 0.035), y, z * (1 - u * 0.04)];
-});
+const pierGeo = groundedBox(PIECE.pierW, PIECE.pierH, PIECE.pierD);
+const bearingGeo = groundedBox(PIECE.bearingW, PIECE.bearingH, PIECE.bearingD);
+const lintelGeo = new THREE.BoxGeometry(PIECE.lintelL, PIECE.lintelH, PIECE.lintelD);
 
 function makeWedgeGeometry() {
+  const { wedgeBase, wedgeTop, wedgeH, wedgeD } = PIECE;
   const shape = new THREE.Shape();
-  shape.moveTo(-0.2, 0);
-  shape.lineTo(0.46, 0);
-  shape.lineTo(0.05, 1.06);
+  shape.moveTo(-wedgeBase / 2, 0);
+  shape.lineTo(wedgeBase / 2, 0);
+  shape.lineTo(wedgeTop / 2, wedgeH);
+  shape.lineTo(-wedgeTop / 2, wedgeH);
   shape.closePath();
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: 0.5,
-    bevelEnabled: true,
-    bevelThickness: 0.012,
-    bevelSize: 0.01,
-    bevelSegments: 1,
-  });
-  geo.translate(0, 0, -0.25);
-  geo.computeBoundingBox();
-  geo.translate(0, -geo.boundingBox.min.y, 0);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: wedgeD, bevelEnabled: false, curveSegments: 1 });
+  geo.translate(0, 0, -wedgeD / 2);
   return geo;
 }
 
 const wedgeGeo = makeWedgeGeometry();
-warpGeometry(wedgeGeo, (x, y, z) => [x, y, z]);
-
-const lintelGeo = new THREE.BoxGeometry(4.6, 0.42, 0.58, 18, 2, 3);
-warpGeometry(lintelGeo, (x, y, z) => {
-  const u = x / 4.5 + 0.5;
-  return [x, y * (0.92 + u * 0.16), z * (1.05 - u * 0.16)];
-});
-
-const offcutGeo = groundedBox(0.26, 0.5, 0.16, 3, 5, 2);
-warpGeometry(offcutGeo, (x, y, z) => [x * (0.85 + y * 0.15), y, z * 0.9]);
-offcutGeo.computeBoundingBox();
-{
-  const bounds = offcutGeo.boundingBox;
-  offcutGeo.translate(-bounds.min.x, -bounds.min.y, -(bounds.min.z + bounds.max.z) / 2);
-}
+const offcutGeo = groundedBox(0.22, 0.36, 0.16);
 
 function addMesh(geo, material) {
   const mesh = new THREE.Mesh(geo, material);
@@ -485,8 +435,8 @@ const wedge = new THREE.Group();
 wedge.add(addMesh(wedgeGeo, wedgeMat));
 const lintel = new THREE.Group();
 lintel.add(addMesh(lintelGeo, lintelMat));
-const bronze = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.016, 0.018), bronzeMat);
-bronze.position.set(0.04, -0.2, 0.3);
+const bronze = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.012, 0.012), bronzeMat);
+bronze.position.set(0, -PIECE.lintelH / 2 + 0.07, PIECE.lintelD / 2 + 0.004);
 bronze.castShadow = true;
 lintel.add(bronze);
 const offcut = new THREE.Group();
@@ -546,10 +496,10 @@ for (let i = -8; i <= 8; i += 1) {
   const x = i * 0.42;
   addLine([x, 0.025, -0.07], [x, 0.025, 0.07]);
 }
-addLine([-1.7, 0.02, 0.08], [-1.7, 2.55, 0.08]);
-addLine([1.58, 0.02, -0.1], [1.58, 1.9, -0.1]);
-for (let y = 0.45; y <= 2.5; y += 0.45) {
-  addLine([-1.78, y, 0.08], [-1.58, y, 0.08]);
+addLine([LOCK.pier[0], 0.02, 0.42], [LOCK.pier[0], 2.7, 0.42]);
+addLine([LOCK.bearing[0], 0.02, 0.5], [LOCK.bearing[0], 1.7, 0.5]);
+for (let y = 0.5; y <= 2.5; y += 0.5) {
+  addLine([LOCK.pier[0] - 0.08, y, 0.42], [LOCK.pier[0] + 0.08, y, 0.42]);
 }
 scene.add(guides);
 
