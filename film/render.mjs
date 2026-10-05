@@ -11,7 +11,7 @@ const stillsOnly = args.includes("--stills");
 const timeFlag = args.indexOf("--time");
 const singleTime = timeFlag >= 0 ? Number(args[timeFlag + 1]) : null;
 
-const STILLS = [4.2, 34.4];
+const STILLS = [0.8, 2.4, 5.2, 6.7, 26.7, 29.1];
 
 const mime = {
   ".html": "text/html; charset=utf-8",

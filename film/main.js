@@ -448,6 +448,71 @@ offcut.add(addMesh(offcutGeo, offcutMat));
 const pieces = { pier, bearing, wedge, lintel, offcut };
 for (const group of Object.values(pieces)) scene.add(group);
 
+const ROLES = [
+  { piece: pier, text: "design", y: 2.15, w: 1.55 },
+  { piece: bearing, text: "ekonomist", y: 0.95, w: 1.9 },
+  { piece: wedge, text: "data scientist", y: 0.62, w: 2.15 },
+  { piece: lintel, text: "data engineer", y: 0.48, w: 2.25 },
+];
+
+function drawTrackedText(ctx, text, x, y, tracking) {
+  const glyphs = [...text];
+  const widths = glyphs.map((glyph) => ctx.measureText(glyph).width);
+  const total = widths.reduce((sum, width) => sum + width, 0) + tracking * Math.max(0, glyphs.length - 1);
+  let cursor = x - total / 2;
+  glyphs.forEach((glyph, index) => {
+    ctx.fillText(glyph, cursor, y);
+    cursor += widths[index] + tracking;
+  });
+}
+
+function makeRoleTexture(text) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 2048;
+  canvas.height = 384;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(243, 239, 230, 0.94)";
+  ctx.beginPath();
+  ctx.roundRect(28, 78, 1992, 228, 16);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(28, 27, 25, 0.45)";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.fillStyle = "#1c1b19";
+  ctx.font = "500 132px Outfit, sans-serif";
+  ctx.textBaseline = "middle";
+  const tracking = text.length > 12 ? 14 : 28;
+  drawTrackedText(ctx, text.toUpperCase(), 1024, 192, tracking);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+const roleLabels = ROLES.map((role) => {
+  const material = new THREE.SpriteMaterial({
+    map: makeRoleTexture(role.text),
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(role.w, role.w * (384 / 2048), 1);
+  sprite.renderOrder = 6;
+  scene.add(sprite);
+  return { sprite, text: role.text, piece: role.piece, y: role.y };
+});
+
+function refreshRoleLabels() {
+  for (const label of roleLabels) {
+    const next = makeRoleTexture(label.text);
+    label.sprite.material.map.dispose();
+    label.sprite.material.map = next;
+    label.sprite.material.needsUpdate = true;
+  }
+}
+
 const blobMap = makeBlobTexture();
 function makeDisc(scale) {
   const mat = new THREE.MeshBasicMaterial({
@@ -805,6 +870,18 @@ function apply(t) {
   washEl.style.opacity = String(cap.wash);
   vignetteEl.style.opacity = String(cap.vignette * 0.9);
   flashEl.style.opacity = String(cap.flash);
+  const roleOpacity = (1 - smooth(Math.min(1, cap.wash / 0.45))) * Math.min(1, t / 0.6);
+  const anchor = new THREE.Vector3();
+  const toward = new THREE.Vector3();
+  for (const label of roleLabels) {
+    label.piece.getWorldPosition(anchor);
+    anchor.y += label.y;
+    toward.set(camera.position.x - anchor.x, 0, camera.position.z - anchor.z);
+    if (toward.lengthSq() < 1e-4) toward.set(0, 0, 1);
+    toward.normalize().multiplyScalar(0.62);
+    label.sprite.position.copy(anchor).add(toward);
+    label.sprite.material.opacity = roleOpacity;
+  }
   grainEl.style.opacity = String(0.16 * (1 - cap.wash * 0.85));
   const drift = Math.floor(t * FPS);
   grainEl.style.backgroundPosition = `${-(drift * 17) % 256}px ${-(drift * 11) % 256}px`;
@@ -817,6 +894,7 @@ function apply(t) {
 
 async function boot() {
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  refreshRoleLabels();
   window.renderFrame = (frame) => {
     const t = Math.min(DURATION, Math.max(0, frame / FPS));
     apply(t);
