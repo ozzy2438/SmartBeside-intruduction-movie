@@ -78,7 +78,8 @@ const pierKeys = [
   { t: 19.6, p: [-1.35, 0, 4.4], r: [0.03, 0, 0.02] },
   { t: 21.2, p: [-1.35, 0, 4.7], r: [0.05, 0, 0.04] },
   { t: 22.5, p: [-1.4, 0, 4.5], r: R0 },
-  { t: 24.5, p: LOCK.pier, r: R0 },
+  { t: 24.28, p: [LOCK.pier[0], 0.07, 0.16], r: R0 },
+  { t: 24.46, p: LOCK.pier, r: R0 },
   { t: 35, p: LOCK.pier, r: R0 },
 ];
 
@@ -97,7 +98,8 @@ const bearingKeys = [
   { t: 19.6, p: [1.55, 0, 4.4], r: [0.03, 0, 0.02] },
   { t: 21.2, p: [1.55, 0, 4.7], r: [0.05, 0, 0.035] },
   { t: 22.55, p: [1.6, 0, 4.5], r: R0 },
-  { t: 24.45, p: LOCK.bearing, r: R0 },
+  { t: 24.26, p: [LOCK.bearing[0] + 0.14, 0.05, 0.1], r: R0 },
+  { t: 24.44, p: LOCK.bearing, r: R0 },
   { t: 35, p: LOCK.bearing, r: R0 },
 ];
 
@@ -122,8 +124,8 @@ const wedgeKeys = [
   { t: 24.2, p: [2.32, 0, 0], r: R0 },
   { t: 24.7, p: [2.32, 0, 0], r: R0 },
   { t: 25.2, p: [2.32, LOCK.wedge[1] + 0.02, 0], r: R0 },
-  { t: 25.8, p: [LOCK.wedge[0], LOCK.wedge[1] + 0.02, 0], r: R0 },
-  { t: 26.08, p: LOCK.wedge, r: R0 },
+  { t: 25.88, p: [LOCK.wedge[0], LOCK.wedge[1] + 0.1, 0], r: R0 },
+  { t: 26.06, p: LOCK.wedge, r: R0 },
   { t: 35, p: LOCK.wedge, r: R0 },
 ];
 
@@ -144,8 +146,8 @@ const lintelKeys = [
   { t: 22.6, p: [0, GROUND_LINTEL_Y, 2.6], r: R0 },
   { t: 24.15, p: [LOCK.lintel[0], GROUND_LINTEL_Y, -2.5], r: R0 },
   { t: 25.05, p: [LOCK.lintel[0], 3.62, -2.5], r: R0 },
-  { t: 25.85, p: [LOCK.lintel[0], 3.62, LOCK.lintel[2]], r: R0 },
-  { t: 26.5, p: LOCK.lintel, r: R0 },
+  { t: 26.28, p: [LOCK.lintel[0], LOCK.lintel[1] + 0.22, LOCK.lintel[2]], r: R0 },
+  { t: 26.48, p: LOCK.lintel, r: R0 },
   { t: 35, p: LOCK.lintel, r: R0 },
 ];
 
@@ -185,13 +187,35 @@ function offcutPose(t) {
   };
 }
 
+const TAU = Math.PI * 2;
+
+function spinYaw(t, turns, lockAt) {
+  const u = Math.min(1, Math.max(0, t / lockAt));
+  return u * turns * TAU;
+}
+
 export function piecePose(name, t) {
-  if (name === "pier") return sample(pierKeys, t);
-  if (name === "bearing") return sample(bearingKeys, t);
-  if (name === "wedge") return sample(wedgeKeys, t);
-  if (name === "lintel") return lintelPose(t);
-  if (name === "offcut") return offcutPose(t);
-  throw new Error(`Unknown piece ${name}`);
+  let pose;
+  let spin = 0;
+  if (name === "pier") {
+    pose = sample(pierKeys, t);
+    spin = spinYaw(t, 2, 24.46);
+  } else if (name === "bearing") {
+    pose = sample(bearingKeys, t);
+    spin = spinYaw(t, -1, 24.44);
+  } else if (name === "wedge") {
+    pose = sample(wedgeKeys, t);
+    spin = spinYaw(t, 2, 26.06);
+  } else if (name === "lintel") {
+    pose = lintelPose(t);
+    spin = spinYaw(t, 1, 26.48);
+  } else if (name === "offcut") {
+    return offcutPose(t);
+  } else {
+    throw new Error(`Unknown piece ${name}`);
+  }
+  pose.r[1] += spin;
+  return pose;
 }
 
 export function offcutOpacity(t) {
@@ -216,56 +240,16 @@ export function guidesOpacity(t) {
   return 0;
 }
 
-function orbit(t) {
-  const u = smooth((t - 26.7) / (29.2 - 26.7));
-  const a = lerp(0.48, Math.PI, u);
-  const radius = lerp(7.4, 9.8, u);
-  const y = lerp(1.72, 2.4, u);
-  return {
-    p: [Math.sin(a) * radius, y, Math.cos(a) * radius],
-    l: [-0.05, 1.6, 0],
-    f: lerp(30, 36, u),
-  };
-}
-
-const cameraKeys = [
-  { t: 0, p: [0.15, 4.4, 17.2], l: [-0.15, 1.05, -0.15], f: 44 },
-  { t: 2.2, p: [-2.3, 1.55, 1.2], l: [-4.7, 1.5, -1.6], f: 27 },
-  { t: 3.65, p: [-5.5, 1.25, -0.1], l: [-4.75, 1.5, -1.28], f: 22 },
-  { t: 4.3, p: [-4.95, 1.45, -0.32], l: [-4.7, 1.52, -1.26], f: 15 },
-  { t: 5.05, p: [0.35, 1.12, 5.9], l: [-1.45, 0.45, 3.35], f: 30 },
-  { t: 6.5, p: [3.4, 1.95, -0.9], l: [0.55, 0.28, -3.7], f: 33 },
-  { t: 8.15, p: [0.4, 13.4, 4.9], l: [0, 0, 0.2], f: 38 },
-  { t: 8.95, p: [-1.7, 12.4, 4.3], l: [0, 0, 0.2], f: 40 },
-  { t: 9.7, p: [0.55, 1.18, 2.55], l: [-1.3, 0.45, 0.5], f: 28 },
-  { t: 11.45, p: [1.7, 1.5, 3.2], l: [-1.25, 0.5, 0.3], f: 32 },
-  { t: 13.2, p: [4.7, 2.4, 5.0], l: [0.1, 0.7, 0], f: 35 },
-  { t: 13.75, p: [3.9, 2.05, 4.0], l: [0.1, 0.75, 0], f: 29 },
-  { t: 15.2, p: [0.2, 9.6, 6.0], l: [0.05, 0.3, 0], f: 32 },
-  { t: 15.95, p: [-2.2, 8.0, 5.3], l: [0.05, 0.3, 0], f: 34 },
-  { t: 16.5, p: [-3.1, 4.4, 4.9], l: [0.1, 0.5, 0], f: 31 },
-  { t: 17.15, p: [-3.2, 1.5, 4.2], l: [0.1, 0.7, 0], f: 29 },
-  { t: 19.5, p: [-5.6, 2.15, 1.0], l: [0.1, 0.9, 4.3], f: 36 },
-  { t: 20.15, p: [-7.0, 2.45, -0.4], l: [0.1, 1.0, 4.4], f: 41 },
-  { t: 21.0, p: [5.9, 1.55, 1.2], l: [0.3, 0.6, 4.6], f: 31 },
-  { t: 21.8, p: [4.5, 1.05, 5.7], l: [1.9, 0.12, 5.1], f: 25 },
-  { t: 22.7, p: [3.6, 1.7, 6.0], l: [0.9, 0.5, 4.6], f: 30 },
-  { t: 23.5, p: [3.4, 2.0, 6.8], l: [0.15, 0.7, 1.2], f: 33 },
-  { t: 24.9, p: [4.6, 1.85, 5.0], l: [0, 1.4, -0.8], f: 32 },
-  { t: 25.75, p: [3.4, 2.1, 4.3], l: [0, 2.7, -1.0], f: 30 },
-  { t: 26.5, p: [3.15, 2.45, 4.15], l: [0.35, 2.35, 0], f: 27 },
-  { t: 26.7, p: [3.417, 1.72, 6.564], l: [-0.05, 1.6, 0], f: 30 },
-  { t: 29.2, p: [0, 2.4, -9.6], l: [-0.05, 1.6, 0], f: 36 },
-  { t: 30.2, p: [-0.1, 1.55, -5.2], l: [-0.05, 1.6, 0.4], f: 39 },
-  { t: 30.95, p: [-0.1, 1.5, -2.4], l: [-0.05, 1.7, 2.0], f: 44 },
-  { t: 32.0, p: [-0.08, 1.52, -0.9], l: [-0.05, 1.85, 4.0], f: 46 },
-  { t: 35, p: [-0.08, 1.55, -0.3], l: [-0.05, 1.95, 5.0], f: 48 },
-];
+const DRONE = { radius: 12.6, height: 13.8, fov: 36, lookY: 0.85 };
 
 export function cameraPose(t) {
-  if (t >= 26.7 && t < 29.2) return orbit(t);
-  const pose = sample(cameraKeys, t);
-  return { p: pose.p, l: pose.l, f: pose.f };
+  // One drone, one height, one lens. It only drifts around the work.
+  const angle = 0.62 + (t / DURATION) * Math.PI * 1.05;
+  return {
+    p: [Math.sin(angle) * DRONE.radius, DRONE.height, Math.cos(angle) * DRONE.radius],
+    l: [0, DRONE.lookY, 0],
+    f: DRONE.fov,
+  };
 }
 
 function fadeWindow(t, t0, t1, fade = 0.38) {
@@ -312,10 +296,8 @@ export function shakeAt(t) {
   ];
 }
 
-export function idleWobble(t) {
-  if (t > 24.0) return 0;
-  if (t > 22.8) return 1 - smooth((t - 22.8) / 1.2);
-  return 1;
+export function idleWobble() {
+  return 0;
 }
 
 export function captionState(t) {
@@ -382,7 +364,9 @@ export const cues = [
   { t: 24.35, type: "scrape", gain: 0.16, pan: 0 },
   { t: 21.61, type: "tick", gain: 0.3, pan: 0.32 },
   { t: 25.8, type: "scrape", gain: 0.14, pan: 0.1 },
-  { t: 26.08, type: "tick", gain: 0.2, pan: 0.16 },
-  { t: 26.5, type: "impact", gain: 0.58, pan: 0 },
+  { t: 24.44, type: "click", gain: 0.55, pan: 0.35 },
+  { t: 24.46, type: "click", gain: 0.55, pan: -0.35 },
+  { t: 26.06, type: "click", gain: 0.62, pan: 0.2 },
+  { t: 26.48, type: "click", gain: 0.78, pan: 0 },
   { t: 29.35, type: "air", gain: 0.2, pan: 0 },
 ];

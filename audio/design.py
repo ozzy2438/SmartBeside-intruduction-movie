@@ -110,6 +110,12 @@ def add_fall(t, gain, pan):
     add_tick(t + 0.46, gain * 0.55, pan)
 
 
+def add_click(t, gain, pan):
+    add_noise_burst(t, 0.016, gain * 0.85, pan, hp=0.62, lp=0.75, color=1.0)
+    add_tone(t, 0.04, 1600, gain * 0.32, pan, 0.01, freq_end=680, attack=0.001)
+    add_tone(t, 0.025, 3200, gain * 0.1, pan, 0.006, attack=0.001)
+
+
 def add_impact(t, gain, pan):
     add_tone(t, 2.4, 46, gain * 0.7, pan, 0.55)
     add_tone(t, 1.6, 92, gain * 0.16, pan, 0.28)
@@ -153,47 +159,51 @@ def add_pad(start, note, seconds, gain, pan=0.0):
     add_tone(start, seconds + 0.8, fundamental * 1.003, gain * 0.55, pan, seconds * 0.9, attack=0.7, target=MUSIC)
 
 
+def add_hat(start, gain):
+    count = int(0.045 * SR)
+    i0 = int(start * SR)
+    low = OnePole()
+    for n in range(count):
+        env = math.exp(-n / (0.012 * SR))
+        grit = RNG.uniform(-1, 1)
+        sample = (grit - low.low(grit, 0.45)) * env * gain
+        index = i0 + n
+        if 0 <= index < N:
+            MUSIC[0][index] += sample * 0.85
+            MUSIC[1][index] += sample
+
+
+def add_kick(start, gain):
+    add_tone(start, 0.16, 74, gain, 0.0, 0.045, freq_end=46, attack=0.002, target=MUSIC)
+    add_tone(start, 0.05, 150, gain * 0.22, 0.0, 0.02, attack=0.001, target=MUSIC)
+
+
 def add_score():
-    # A small ensemble in D minor. It starts sparse and starts to move once they work.
+    # 120 bpm, D major. A moving bed, not a drone.
+    beat = 0.5
     chords = (
-        (0.6, (38, 50, 57), 7.6),
-        (8.2, (41, 53, 58), 7.6),
-        (15.8, (43, 50, 55), 7.8),
-        (23.6, (38, 50, 57, 62), 8.2),
-        (31.6, (38, 45, 50), 3.4),
+        (0.25, (38, 50, 54, 57)),   # D
+        (4.25, (43, 55, 59, 62)),   # G
+        (8.25, (42, 54, 57, 61)),   # Bm
+        (12.25, (45, 57, 61, 64)),  # A
     )
-    for start, notes, length in chords:
-        for index, note in enumerate(notes):
-            add_pad(start, note, length, 0.055 if index == 0 else 0.03, pan=(-0.25 if index % 2 == 0 else 0.25))
-
-    melody = (
-        (1.3, 62, 1.5), (3.1, 65, 1.4), (5.0, 69, 1.6), (7.2, 67, 1.3),
-        (9.0, 65, 1.4), (10.8, 64, 1.5), (12.8, 62, 1.4), (14.6, 69, 1.2),
-        (16.2, 67, 1.1), (17.8, 65, 1.3), (19.6, 72, 1.5), (21.6, 69, 1.3),
-        (23.4, 67, 1.4), (25.2, 65, 1.6), (27.4, 69, 1.5), (29.4, 65, 1.4),
-        (31.2, 62, 2.0), (33.6, 62, 1.4),
-    )
-    for start, note, length in melody:
-        add_piano(start, note, length, 0.11, pan=0.08)
-        add_piano(start, note - 12, length * 0.8, 0.04, pan=-0.15)
-
-    # The moving figure. Eighth notes, only after they start working together.
-    step = 0.42
-    figure = (0, 3, 7, 3, 8, 7, 3, 0)
-    roots = ((11.6, 50, 4.2), (15.8, 53, 4.2), (20.0, 55, 3.6), (23.6, 50, 6.5))
-    moment = 11.6
-    end = 30.2
-    index = 0
-    while moment < end:
-        root = 50
-        for start, note, length in roots:
-            if start <= moment < start + length:
-                root = note
-                break
-        degree = figure[index % len(figure)]
-        add_piano(moment, root + degree, step * 0.92, 0.045, pan=0.22 if index % 2 else -0.22)
-        moment += step
-        index += 1
+    start = 0.25
+    while start < 33.0:
+        chord = chords[int((start - 0.25) / 4.0) % len(chords)][1]
+        bar_pos = round((start - 0.25) / beat) % 8
+        if bar_pos in (0, 2, 4, 6):
+            add_kick(start, 0.2 if bar_pos in (0, 4) else 0.12)
+            add_pad(start, chord[0], beat * 1.6, 0.05, pan=-0.2)
+        if bar_pos in (0, 3, 4, 7):
+            add_piano(start, chord[1] + 12, beat * 0.7, 0.07, pan=0.15)
+        add_hat(start, 0.035 if bar_pos % 2 == 0 else 0.018)
+        # A short riff that keeps the track moving.
+        riff = (0, 4, 7, 4, 9, 7, 4, 0)
+        add_piano(start, chord[0] + 12 + riff[bar_pos], beat * 0.42, 0.055, pan=0.05)
+        start += beat
+    add_pad(33.0, 38, 2.2, 0.06, pan=0.0)
+    add_pad(33.0, 50, 2.2, 0.04, pan=0.2)
+    add_piano(33.2, 62, 1.6, 0.08, pan=0.0)
 
 
 def load_narration():
@@ -236,7 +246,7 @@ def mix_narration(clips):
     for index in range(N):
         target = duck[index]
         state += (attack if target > state else release) * (target - state)
-        bed = 1.0 - 0.62 * state
+        bed = 1.0 - 0.38 * state
         MUSIC[0][index] *= bed
         MUSIC[1][index] *= bed
 
@@ -268,6 +278,8 @@ def main():
             add_fall(t, gain, pan)
         elif kind == "impact":
             add_impact(t, gain, pan)
+        elif kind == "click":
+            add_click(t, gain, pan)
         else:
             raise SystemExit(f"Unknown cue {kind}")
 
