@@ -137,25 +137,25 @@
     {
       "t": 24.44,
       "type": "click",
-      "gain": 0.55,
+      "gain": 0.9,
       "pan": 0.35
     },
     {
       "t": 24.46,
       "type": "click",
-      "gain": 0.55,
+      "gain": 0.9,
       "pan": -0.35
     },
     {
       "t": 26.06,
       "type": "click",
-      "gain": 0.62,
+      "gain": 1,
       "pan": 0.2
     },
     {
       "t": 26.48,
       "type": "click",
-      "gain": 0.78,
+      "gain": 1.15,
       "pan": 0
     },
     {

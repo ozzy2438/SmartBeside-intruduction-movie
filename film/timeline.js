@@ -26,7 +26,10 @@ function sample(keys, t) {
   while (keys[i].t < t) i += 1;
   const a = keys[i - 1];
   const b = keys[i];
-  const u = smooth((t - a.t) / (b.t - a.t));
+  const span = b.t - a.t;
+  const raw = (t - a.t) / span;
+  // A short move is a click: the piece waits, then drops into the seat.
+  const u = span <= 0.34 ? (raw < 0.62 ? 0 : Math.pow((raw - 0.62) / 0.38, 0.35)) : smooth(raw);
   const ar = a.r || [0, 0, 0];
   const br = b.r || [0, 0, 0];
   const al = a.l || a.p;
@@ -240,15 +243,12 @@ export function guidesOpacity(t) {
   return 0;
 }
 
-const DRONE = { radius: 12.6, height: 13.8, fov: 36, lookY: 0.85 };
-
-export function cameraPose(t) {
-  // One drone, one height, one lens. It only drifts around the work.
-  const angle = 0.62 + (t / DURATION) * Math.PI * 1.05;
+export function cameraPose() {
+  // One eye. It does not zoom, push, or orbit.
   return {
-    p: [Math.sin(angle) * DRONE.radius, DRONE.height, Math.cos(angle) * DRONE.radius],
-    l: [0, DRONE.lookY, 0],
-    f: DRONE.fov,
+    p: [8.4, 15.6, 12.2],
+    l: [0.1, 0.35, 0],
+    f: 32,
   };
 }
 
@@ -285,15 +285,8 @@ function flashOpacity(t) {
   return Math.min(0.18, flash);
 }
 
-export function shakeAt(t) {
-  let amp = 0;
-  if (t >= 26.5) amp += 0.045 * Math.exp(-(t - 26.5) / 0.3);
-  if (t >= 21.61) amp += 0.016 * Math.exp(-(t - 21.61) / 0.22);
-  if (amp <= 0.0005) return [0, 0];
-  return [
-    Math.sin(t * 150) * amp,
-    Math.cos(t * 123) * amp * 0.7,
-  ];
+export function shakeAt() {
+  return [0, 0];
 }
 
 export function idleWobble() {
@@ -364,9 +357,9 @@ export const cues = [
   { t: 24.35, type: "scrape", gain: 0.16, pan: 0 },
   { t: 21.61, type: "tick", gain: 0.3, pan: 0.32 },
   { t: 25.8, type: "scrape", gain: 0.14, pan: 0.1 },
-  { t: 24.44, type: "click", gain: 0.55, pan: 0.35 },
-  { t: 24.46, type: "click", gain: 0.55, pan: -0.35 },
-  { t: 26.06, type: "click", gain: 0.62, pan: 0.2 },
-  { t: 26.48, type: "click", gain: 0.78, pan: 0 },
+  { t: 24.44, type: "click", gain: 0.9, pan: 0.35 },
+  { t: 24.46, type: "click", gain: 0.9, pan: -0.35 },
+  { t: 26.06, type: "click", gain: 1.0, pan: 0.2 },
+  { t: 26.48, type: "click", gain: 1.15, pan: 0 },
   { t: 29.35, type: "air", gain: 0.2, pan: 0 },
 ];

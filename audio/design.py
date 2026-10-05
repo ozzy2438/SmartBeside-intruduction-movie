@@ -111,9 +111,9 @@ def add_fall(t, gain, pan):
 
 
 def add_click(t, gain, pan):
-    add_noise_burst(t, 0.016, gain * 0.85, pan, hp=0.62, lp=0.75, color=1.0)
-    add_tone(t, 0.04, 1600, gain * 0.32, pan, 0.01, freq_end=680, attack=0.001)
-    add_tone(t, 0.025, 3200, gain * 0.1, pan, 0.006, attack=0.001)
+    add_noise_burst(t, 0.012, gain * 1.15, pan, hp=0.7, lp=0.82, color=1.0)
+    add_tone(t, 0.028, 2100, gain * 0.55, pan, 0.008, freq_end=900, attack=0.001)
+    add_tone(t, 0.05, 180, gain * 0.7, pan, 0.02, freq_end=90, attack=0.001)
 
 
 def add_impact(t, gain, pan):
@@ -178,32 +178,48 @@ def add_kick(start, gain):
     add_tone(start, 0.05, 150, gain * 0.22, 0.0, 0.02, attack=0.001, target=MUSIC)
 
 
+def add_snap(start, gain):
+    add_tone(start, 0.09, 220, gain, 0.0, 0.03, attack=0.001, target=MUSIC)
+    add_noise_into_music(start, 0.03, gain * 0.45)
+
+
+def add_noise_into_music(start, seconds, gain):
+    count = int(seconds * SR)
+    i0 = int(start * SR)
+    low = OnePole()
+    for n in range(count):
+        env = math.exp(-n / max(1.0, seconds * 0.35 * SR))
+        grit = RNG.uniform(-1, 1)
+        sample = (grit - low.low(grit, 0.35)) * env * gain
+        index = i0 + n
+        if 0 <= index < N:
+            MUSIC[0][index] += sample
+            MUSIC[1][index] += sample * 0.92
+
+
 def add_score():
-    # 120 bpm, D major. A moving bed, not a drone.
-    beat = 0.5
-    chords = (
-        (0.25, (38, 50, 54, 57)),   # D
-        (4.25, (43, 55, 59, 62)),   # G
-        (8.25, (42, 54, 57, 61)),   # Bm
-        (12.25, (45, 57, 61, 64)),  # A
-    )
-    start = 0.25
-    while start < 33.0:
-        chord = chords[int((start - 0.25) / 4.0) % len(chords)][1]
-        bar_pos = round((start - 0.25) / beat) % 8
-        if bar_pos in (0, 2, 4, 6):
-            add_kick(start, 0.2 if bar_pos in (0, 4) else 0.12)
-            add_pad(start, chord[0], beat * 1.6, 0.05, pan=-0.2)
-        if bar_pos in (0, 3, 4, 7):
-            add_piano(start, chord[1] + 12, beat * 0.7, 0.07, pan=0.15)
-        add_hat(start, 0.035 if bar_pos % 2 == 0 else 0.018)
-        # A short riff that keeps the track moving.
-        riff = (0, 4, 7, 4, 9, 7, 4, 0)
-        add_piano(start, chord[0] + 12 + riff[bar_pos], beat * 0.42, 0.055, pan=0.05)
+    # 126 bpm. The kick never drops out, and the riff stays in front of the voice.
+    beat = 60 / 126
+    chords = ((38, 50, 54, 57), (43, 55, 59, 62), (42, 54, 57, 61), (45, 57, 61, 64))
+    riff = (0, 4, 7, 12, 7, 4, 9, 7)
+    start = 0.12
+    step = 0
+    while start < 33.4:
+        chord = chords[int(start / 4.0) % len(chords)]
+        beat_in_bar = step % 8
+        add_kick(start, 0.42 if beat_in_bar % 2 == 0 else 0.16)
+        add_hat(start, 0.11 if beat_in_bar % 2 else 0.055)
+        if beat_in_bar in (2, 6):
+            add_snap(start, 0.28)
+        if beat_in_bar in (0, 4):
+            add_pad(start, chord[0], beat * 1.8, 0.11, pan=-0.15)
+        add_piano(start, chord[0] + 12 + riff[beat_in_bar], beat * 0.46, 0.16, pan=0.12 if beat_in_bar % 2 else -0.08)
+        if beat_in_bar in (0, 3, 4, 7):
+            add_piano(start, chord[2] + 12, beat * 0.4, 0.09, pan=0.25)
         start += beat
-    add_pad(33.0, 38, 2.2, 0.06, pan=0.0)
-    add_pad(33.0, 50, 2.2, 0.04, pan=0.2)
-    add_piano(33.2, 62, 1.6, 0.08, pan=0.0)
+        step += 1
+    add_pad(33.4, 38, 1.6, 0.1)
+    add_piano(33.5, 62, 1.2, 0.12)
 
 
 def load_narration():
@@ -235,7 +251,7 @@ def mix_narration(clips):
         for index, value in enumerate(samples):
             at = begin + index
             if 0 <= at < N:
-                sample = (value / 32768.0) * 0.72
+                sample = (value / 32768.0) * 0.48
                 LEFT[at] += sample
                 RIGHT[at] += sample * 0.98
                 duck[at] = 1.0
@@ -246,7 +262,7 @@ def mix_narration(clips):
     for index in range(N):
         target = duck[index]
         state += (attack if target > state else release) * (target - state)
-        bed = 1.0 - 0.38 * state
+        bed = 1.0 - 0.18 * state
         MUSIC[0][index] *= bed
         MUSIC[1][index] *= bed
 
@@ -286,11 +302,11 @@ def main():
     peak = 1e-6
     for n in range(N):
         peak = max(peak, abs(LEFT[n]), abs(RIGHT[n]))
-    scale = 0.62 / peak if peak > 0.62 else 1.0
+    scale = 0.96 / peak if peak > 0.96 else 1.0
     out = array.array("h")
     for n in range(N):
-        left = math.tanh(LEFT[n] * scale * 1.15)
-        right = math.tanh(RIGHT[n] * scale * 1.15)
+        left = math.tanh(LEFT[n] * scale)
+        right = math.tanh(RIGHT[n] * scale)
         out.append(int(clamp_sample(left) * 32767))
         out.append(int(clamp_sample(right) * 32767))
 
