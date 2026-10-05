@@ -12,6 +12,7 @@ The picture is a frame-locked Three.js scene. Under it is an original score, a c
 
 ```bash
 npm install
+pip install edge-tts
 npm run render
 python3 audio/narrate.py
 python3 audio/design.py
